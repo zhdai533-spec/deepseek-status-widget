@@ -51,6 +51,7 @@ interface UiSettings {
   show_today_cost: boolean;
   show_month_cost: boolean;
   start_visible: boolean;
+  autostart: boolean;
   balance_interval_s: number;
   usage_interval_min: number;
 }
@@ -61,6 +62,7 @@ const DEFAULT_UI: UiSettings = {
   show_today_cost: true,
   show_month_cost: true,
   start_visible: true,
+  autostart: true,
   balance_interval_s: 60,
   usage_interval_min: 5,
 };
@@ -693,6 +695,11 @@ function App() {
             label="启动时显示"
             checked={ui.start_visible}
             onChange={() => saveUi({ start_visible: !ui.start_visible })}
+          />
+          <ToggleRow
+            label="随 Windows 启动（开 Codex 就弹出）"
+            checked={ui.autostart}
+            onChange={() => saveUi({ autostart: !ui.autostart })}
           />
           <ToggleRow
             label="显示余额"

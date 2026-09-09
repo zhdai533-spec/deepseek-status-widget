@@ -30,6 +30,7 @@ struct WidgetPrefs {
     show_today_cost: bool,
     show_month_cost: bool,
     start_visible: bool,
+    autostart: bool,
     balance_interval_s: u64,
     usage_interval_min: u64,
 }
@@ -45,6 +46,7 @@ impl Default for WidgetPrefs {
             show_today_cost: true,
             show_month_cost: true,
             start_visible: true,
+            autostart: true,
             balance_interval_s: 60,
             usage_interval_min: 5,
         }
@@ -59,6 +61,7 @@ struct UiSettings {
     show_today_cost: bool,
     show_month_cost: bool,
     start_visible: bool,
+    autostart: bool,
     balance_interval_s: u64,
     usage_interval_min: u64,
 }
@@ -72,6 +75,7 @@ impl Default for UiSettings {
             show_today_cost: p.show_today_cost,
             show_month_cost: p.show_month_cost,
             start_visible: p.start_visible,
+            autostart: p.autostart,
             balance_interval_s: p.balance_interval_s,
             usage_interval_min: p.usage_interval_min,
         }
@@ -104,6 +108,75 @@ fn save_prefs(prefs: &WidgetPrefs) {
     }
 }
 
+const RUN_PATH: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const RUN_NAME: &str = "DeepSeekStatusWidget";
+const HKEY_CURRENT_USER: usize = 0x8000_0001;
+const KEY_SET_VALUE: u32 = 0x0002;
+const REG_SZ: u32 = 1;
+
+#[link(name = "advapi32")]
+extern "system" {
+    fn RegOpenKeyExW(
+        hkey: usize,
+        subkey: *const u16,
+        reserved: u32,
+        sam: u32,
+        out: *mut usize,
+    ) -> i32;
+    fn RegSetValueExW(
+        hkey: usize,
+        name: *const u16,
+        reserved: u32,
+        ty: u32,
+        data: *const u8,
+        size: u32,
+    ) -> i32;
+    fn RegDeleteValueW(hkey: usize, name: *const u16) -> i32;
+    fn RegCloseKey(hkey: usize) -> i32;
+}
+
+fn wide_utf16(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(Some(0)).collect()
+}
+
+/// 把当前程序写进（或移出）HKCU 登录启动项，登录后它一直在后台待命，Codex 一开就显示。
+fn apply_autostart(enabled: bool) -> Result<(), String> {
+    let run = wide_utf16(RUN_PATH);
+    let mut key: usize = 0;
+    if unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, run.as_ptr(), 0, KEY_SET_VALUE, &mut key) } != 0 {
+        return Err("无法打开注册表启动项".into());
+    }
+
+    let result = if enabled {
+        let exe = std::env::current_exe()
+            .map(|p| format!("\"{}\"", p.display()))
+            .map_err(|e| e.to_string())?;
+        let name = wide_utf16(RUN_NAME);
+        let value: Vec<u16> = exe.encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            RegSetValueExW(
+                key,
+                name.as_ptr(),
+                0,
+                REG_SZ,
+                value.as_ptr() as *const u8,
+                (value.len() * 2) as u32,
+            )
+        }
+    } else {
+        let name = wide_utf16(RUN_NAME);
+        unsafe { RegDeleteValueW(key, name.as_ptr()) }
+    };
+    unsafe { RegCloseKey(key) };
+
+    match (result, enabled) {
+        (0, _) => Ok(()),
+        (_, true) => Err("写入登录启动项失败".into()),
+        // 删除不存在的值返回 2，视为已清除
+        (_, false) => Ok(()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -113,6 +186,9 @@ pub fn run() {
                 .expect("main window missing");
             // 窗口初始隐藏；找到 Codex 后再显示
             let prefs = Arc::new(Mutex::new(load_prefs()));
+            if let Err(e) = apply_autostart(prefs.lock().unwrap().autostart) {
+                eprintln!("设置登录启动项失败: {e}");
+            }
             app.manage(prefs.clone());
             usage::start(app.handle().clone());
             let force_reposition = Arc::new(AtomicBool::new(false));
@@ -165,6 +241,7 @@ fn get_ui_settings(prefs: tauri::State<Arc<Mutex<WidgetPrefs>>>) -> UiSettings {
         show_today_cost: p.show_today_cost,
         show_month_cost: p.show_month_cost,
         start_visible: p.start_visible,
+        autostart: p.autostart,
         balance_interval_s: p.balance_interval_s,
         usage_interval_min: p.usage_interval_min,
     }
@@ -181,10 +258,11 @@ fn set_ui_settings(
     p.show_today_cost = settings.show_today_cost;
     p.show_month_cost = settings.show_month_cost;
     p.start_visible = settings.start_visible;
+    p.autostart = settings.autostart;
     p.balance_interval_s = settings.balance_interval_s.max(5);
     p.usage_interval_min = settings.usage_interval_min.max(1);
     save_prefs(&p);
-    Ok(())
+    apply_autostart(p.autostart)
 }
 
 #[tauri::command]
