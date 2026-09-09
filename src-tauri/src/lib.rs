@@ -148,9 +148,12 @@ fn apply_autostart(enabled: bool) -> Result<(), String> {
     }
 
     let result = if enabled {
-        let exe = std::env::current_exe()
-            .map(|p| format!("\"{}\"", p.display()))
-            .map_err(|e| e.to_string())?;
+        let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+        // 开发调试的 target\debug exe 依赖本地 dev server，不能单独自启动，跳过注册
+        if exe_path.to_string_lossy().to_lowercase().contains("\\target\\debug") {
+            return Ok(());
+        }
+        let exe = format!("\"{}\"", exe_path.display());
         let name = wide_utf16(RUN_NAME);
         let value: Vec<u16> = exe.encode_utf16().chain(Some(0)).collect();
         unsafe {
