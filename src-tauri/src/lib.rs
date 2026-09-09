@@ -18,6 +18,10 @@ const WIDGET_BOTTOM_GAP_L: f64 = 10.0; // Widget 底边与账户区的间距
 const POLL_MS: u64 = 5; // 高频率轮询 + 命中即动，延迟基本不可感知
 const ANCHOR_CODEX_BOTTOM_LEFT: &str = "codex-bottom-left";
 
+fn default_true() -> bool {
+    true
+}
+
 /// 保存的是「相对 Codex 左下锚点」的偏移（逻辑像素），不存绝对屏幕坐标
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -29,7 +33,9 @@ struct WidgetPrefs {
     show_tokens: bool,
     show_today_cost: bool,
     show_month_cost: bool,
+    #[serde(default = "default_true")]
     start_visible: bool,
+    #[serde(default = "default_true")]
     autostart: bool,
     balance_interval_s: u64,
     usage_interval_min: u64,
