@@ -186,8 +186,33 @@ fn apply_autostart(enabled: bool) -> Result<(), String> {
     }
 }
 
+const ERROR_ALREADY_EXISTS: u32 = 183;
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn CreateMutexW(
+        lp_mutex_attributes: *mut std::ffi::c_void,
+        b_initial_owner: i32,
+        lp_name: *const u16,
+    ) -> *mut std::ffi::c_void;
+    fn GetLastError() -> u32;
+}
+
+/// 防止 Windows 登录时同时命中「注册表启动项」和「启动文件夹」导致开两个实例。
+fn already_running() -> bool {
+    let name = wide_utf16("DeepSeekStatusWidget.SingleInstance");
+    unsafe {
+        CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr());
+    }
+    let last_error = unsafe { GetLastError() };
+    last_error == ERROR_ALREADY_EXISTS
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if already_running() {
+        return;
+    }
     tauri::Builder::default()
         .setup(|app| {
             let window = app
