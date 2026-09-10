@@ -34,7 +34,6 @@ interface Balance {
 interface UsageTotals {
   today_tokens: number;
   month_tokens: number;
-  current_model: string;
 }
 
 interface OfficialUsage {
@@ -150,9 +149,7 @@ function App() {
   const [usage, setUsage] = useState<UsageTotals>({
     today_tokens: 0,
     month_tokens: 0,
-    current_model: "",
   });
-  const [proxyUrl, setProxyUrl] = useState("");
   const [ui, setUi] = useState<UiSettings>(DEFAULT_UI);
   const [posMsg, setPosMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "updating" | "ok" | "err">(
@@ -164,7 +161,6 @@ function App() {
     invoke<boolean>("user_token_configured")
       .then(setTokenConfigured)
       .catch(() => {});
-    invoke<string>("proxy_url").then(setProxyUrl).catch(() => {});
     invoke<UiSettings>("get_ui_settings").then(setUi).catch(() => {});
   }, []);
 
@@ -566,20 +562,15 @@ function App() {
               }
             />
           )}
-          {ui.show_month_cost ? (
-            <div className="pair">
-              <Metric
-                label="本月花费"
-                value={
-                  official
-                    ? fmtCost(official.month_cost, official.currency)
-                    : "未登录"
-                }
-              />
-              <Metric label="当前模型" value={usage.current_model || "未登录"} />
-            </div>
-          ) : (
-            <Metric label="当前模型" value={usage.current_model || "未登录"} />
+          {ui.show_month_cost && (
+            <Metric
+              label="本月花费"
+              value={
+                official
+                  ? fmtCost(official.month_cost, official.currency)
+                  : "未登录"
+              }
+            />
           )}
           {ui.show_tokens && (
             <Metric
@@ -707,7 +698,7 @@ function App() {
             onChange={() => saveUi({ show_balance: !ui.show_balance })}
           />
           <ToggleRow
-            label="显示 Token（本地统计）"
+            label="显示 Token"
             checked={ui.show_tokens}
             onChange={() => saveUi({ show_tokens: !ui.show_tokens })}
           />
@@ -761,18 +752,6 @@ function App() {
             </button>
           </div>
           {posMsg && <div className="api-msg ok">{posMsg}</div>}
-
-          <div className="set-divider" />
-          <div className="settings-head">本地统计代理</div>
-          <p className="settings-hint">
-            把 DeepSeek 客户端的 base_url 改成下面地址，经过它的调用会自动记账：
-          </p>
-          <input
-            className="key-input url-box"
-            readOnly
-            value={proxyUrl}
-            onFocus={(e) => e.currentTarget.select()}
-          />
 
           <div className="set-divider" />
           <div className="about">DeepSeek Status Widget · Version {APP_VERSION}</div>

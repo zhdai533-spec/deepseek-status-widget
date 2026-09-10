@@ -224,7 +224,6 @@ pub fn run() {
                 eprintln!("设置登录启动项失败: {e}");
             }
             app.manage(prefs.clone());
-            usage::start(app.handle().clone());
             let force_reposition = Arc::new(AtomicBool::new(false));
             app.manage(force_reposition.clone());
             std::thread::spawn(move || follow_codex(window, prefs, force_reposition));
@@ -243,7 +242,6 @@ pub fn run() {
             official_usage_test,
             official_usage_fetch,
             usage_totals,
-            proxy_url,
             open_deepseek_login,
             get_ui_settings,
             set_ui_settings
@@ -355,11 +353,6 @@ fn official_usage_fetch() -> Result<deepseek::OfficialUsage, String> {
 #[tauri::command]
 fn usage_totals() -> usage::UsageTotals {
     usage::totals()
-}
-
-#[tauri::command]
-fn proxy_url() -> String {
-    usage::proxy_url()
 }
 
 #[tauri::command]
